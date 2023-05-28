@@ -1,3 +1,6 @@
+mod lexer;
+
 fn main() {
-    println!("Hello, world!");
+    let mut lex = lexer::Lexer::new(String::from("Hello, world"));
+    let _token = lex.next_token();
 }
