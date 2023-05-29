@@ -4,16 +4,32 @@ pub enum Token {
     Eof,
     Ident(String),
     Int(String),
+
     Assign,
     Plus,
+    Minus,
+    Bang,
+    Asterisk,
+    Slash,
+    Lt,
+    Gt,
+    Eq,
+    Neq,
+
     Comma,
     Semicolon,
     Lparen,
     Rparen,
     Lbrace,
     Rbrace,
+
     Function,
     Let,
+    True,
+    False,
+    If,
+    Else,
+    Return,
 }
 
 pub struct Lexer {
@@ -49,12 +65,32 @@ impl Lexer {
         self.skip_whitespace();
 
         let token = match self.ch {
-            b'=' => Token::Assign,
+            b'=' => {
+                if self.peek_char() == b'=' {
+                    self.read_char();
+                    Token::Eq
+                } else {
+                    Token::Assign
+                }
+            }
+            b'!' => {
+                if self.peek_char() == b'=' {
+                    self.read_char();
+                    Token::Neq
+                } else {
+                    Token::Bang
+                }
+            }
+            b'+' => Token::Plus,
+            b'-' => Token::Minus,
+            b'/' => Token::Slash,
+            b'*' => Token::Asterisk,
+            b'<' => Token::Lt,
+            b'>' => Token::Gt,
             b';' => Token::Semicolon,
             b'(' => Token::Lparen,
             b')' => Token::Rparen,
             b',' => Token::Comma,
-            b'+' => Token::Plus,
             b'{' => Token::Lbrace,
             b'}' => Token::Rbrace,
 
@@ -96,12 +132,25 @@ impl Lexer {
             self.read_char()
         }
     }
+
+    fn peek_char(&mut self) -> u8 {
+        if self.read_pos >= self.input.len() {
+            return 0;
+        } else {
+            return self.input.as_bytes()[self.read_pos];
+        }
+    }
 }
 
 fn lookup_ident(ident: String) -> Token {
     match &*ident {
         "fn" => Token::Function,
         "let" => Token::Let,
+        "true" => Token::True,
+        "false" => Token::False,
+        "if" => Token::If,
+        "else" => Token::Else,
+        "return" => Token::Return,
         _ => Token::Ident(ident),
     }
 }
@@ -127,7 +176,19 @@ mod tests {
             let add = fn(x, y) {
                 x + y;
             };
-            let result = add(five, ten);",
+            let result = add(five, ten);
+            !-/*5;
+            5 < 10 > 5;
+
+            if (5 < 10) {
+                return true;
+            } else {
+                return false;
+            }
+
+            10 == 10;
+            10 != 9;
+        ",
         );
         let tests = [
             Token::Let,
@@ -165,6 +226,43 @@ mod tests {
             Token::Comma,
             Token::Ident(String::from("ten")),
             Token::Rparen,
+            Token::Semicolon,
+            Token::Bang,
+            Token::Minus,
+            Token::Slash,
+            Token::Asterisk,
+            Token::Int(String::from("5")),
+            Token::Semicolon,
+            Token::Int(String::from("5")),
+            Token::Lt,
+            Token::Int(String::from("10")),
+            Token::Gt,
+            Token::Int(String::from("5")),
+            Token::Semicolon,
+            Token::If,
+            Token::Lparen,
+            Token::Int(String::from("5")),
+            Token::Lt,
+            Token::Int(String::from("10")),
+            Token::Rparen,
+            Token::Lbrace,
+            Token::Return,
+            Token::True,
+            Token::Semicolon,
+            Token::Rbrace,
+            Token::Else,
+            Token::Lbrace,
+            Token::Return,
+            Token::False,
+            Token::Semicolon,
+            Token::Rbrace,
+            Token::Int(String::from("10")),
+            Token::Eq,
+            Token::Int(String::from("10")),
+            Token::Semicolon,
+            Token::Int(String::from("10")),
+            Token::Neq,
+            Token::Int(String::from("9")),
             Token::Semicolon,
             Token::Eof,
         ];
