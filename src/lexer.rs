@@ -61,7 +61,7 @@ impl Lexer {
         self.read_pos += 1
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> anyhow::Result<Token> {
         self.skip_whitespace();
 
         let token = match self.ch {
@@ -97,9 +97,9 @@ impl Lexer {
             0 => Token::Eof,
             _ => {
                 if is_letter(self.ch) {
-                    return lookup_ident(self.read_ident());
-                } else if is_digit(self.ch) {
-                    return Token::Int(self.read_number());
+                    return Ok(lookup_ident(self.read_ident()));
+                } else if self.ch.is_ascii_digit() {
+                    return Ok(Token::Int(self.read_number()));
                 } else {
                     Token::Illegal
                 }
@@ -108,7 +108,7 @@ impl Lexer {
 
         self.read_char();
 
-        return token;
+        return Ok(token);
     }
 
     fn read_ident(&mut self) -> String {
@@ -121,14 +121,14 @@ impl Lexer {
 
     fn read_number(&mut self) -> String {
         let pos = self.pos;
-        while is_digit(self.ch) {
+        while self.ch.is_ascii_digit() {
             self.read_char()
         }
         return String::from_utf8_lossy(&self.input[pos..self.pos]).to_string();
     }
 
     fn skip_whitespace(&mut self) {
-        while self.ch == b' ' || self.ch == b'\t' || self.ch == b'\n' || self.ch == b'\r' {
+        while self.ch.is_ascii_whitespace() {
             self.read_char()
         }
     }
@@ -155,10 +155,6 @@ fn lookup_ident(ident: String) -> Token {
     }
 }
 
-fn is_digit(ch: u8) -> bool {
-    return b'0' <= ch && ch <= b'9';
-}
-
 fn is_letter(ch: u8) -> bool {
     return b'a' <= ch && ch <= b'z' || b'A' <= ch && ch <= b'Z' || ch == b'_';
 }
@@ -166,9 +162,10 @@ fn is_letter(ch: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{Lexer, Token};
+    use anyhow::Result;
 
     #[test]
-    fn test_next_token() {
+    fn test_next_token() -> Result<()> {
         let input = String::from(
             "
             let five = 5;
@@ -270,8 +267,9 @@ mod tests {
         let mut l = Lexer::new(input);
 
         for tt in tests {
-            let tok = l.next_token();
+            let tok = l.next_token()?;
             assert_eq!(tok, tt);
         }
+        return Ok(());
     }
 }
