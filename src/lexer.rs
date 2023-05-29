@@ -33,7 +33,7 @@ pub enum Token {
 }
 
 pub struct Lexer {
-    input: String,
+    input: Vec<u8>,
     pos: usize,
     read_pos: usize,
     ch: u8,
@@ -42,7 +42,7 @@ pub struct Lexer {
 impl Lexer {
     pub fn new(input: String) -> Lexer {
         let mut l = Lexer {
-            input,
+            input: input.into_bytes(),
             pos: 0,
             read_pos: 0,
             ch: 0,
@@ -55,7 +55,7 @@ impl Lexer {
         if self.read_pos >= self.input.len() {
             self.ch = 0
         } else {
-            self.ch = self.input.as_bytes()[self.read_pos]
+            self.ch = self.input[self.read_pos]
         }
         self.pos = self.read_pos;
         self.read_pos += 1
@@ -116,7 +116,7 @@ impl Lexer {
         while is_letter(self.ch) {
             self.read_char()
         }
-        return self.input[pos..self.pos].to_string();
+        return String::from_utf8_lossy(&self.input[pos..self.pos]).to_string();
     }
 
     fn read_number(&mut self) -> String {
@@ -124,7 +124,7 @@ impl Lexer {
         while is_digit(self.ch) {
             self.read_char()
         }
-        return self.input[pos..self.pos].to_string();
+        return String::from_utf8_lossy(&self.input[pos..self.pos]).to_string();
     }
 
     fn skip_whitespace(&mut self) {
@@ -137,7 +137,7 @@ impl Lexer {
         if self.read_pos >= self.input.len() {
             return 0;
         } else {
-            return self.input.as_bytes()[self.read_pos];
+            return self.input[self.read_pos];
         }
     }
 }
