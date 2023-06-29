@@ -1,5 +1,3 @@
-use std::io::Seek;
-
 use crate::{lexer::{Lexer, Token}, ast::{Node, Statement}};
 use anyhow::Result;
 
@@ -47,6 +45,7 @@ impl Parser {
     fn parse_stmt(&mut self) -> Option<Statement> {
         match self.cur_token {
             Some(Token::Let) => self.parse_let_stmt(),
+            Some(Token::Return) => self.parse_return_stmt(),
             _ => None
         }
     }
@@ -78,6 +77,18 @@ impl Parser {
     fn peek_error(&mut self, expected: Token) {
         let msg = format!("expected next token to be {:?}, got {:?} instead", expected, self.peek_token.as_ref().unwrap());
         self.errors.push(String::from(msg))
+    }
+
+    fn parse_return_stmt(&mut self) -> Option<Statement> {
+        let return_token = self.cur_token.take().unwrap();
+        self.next_token();
+
+        while self.cur_token != Some(Token::Semicolon) {
+            self.next_token();
+        }
+
+        return Some(Statement::Return(return_token, None))
+
     }
 
 }
@@ -123,9 +134,47 @@ mod tests {
         for (i, tt) in tests.iter().enumerate() {
             let stmt = &stmts[i];
             match stmt {
-                Statement::Let(token, ident, expr) => test_let(token, ident, expr, tt)
+                Statement::Let(token, ident, expr) => test_let(token, ident, expr, tt),
+                _ => panic!("unexpected statement {:?}", stmt)
             }
 
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_return_stmt() -> Result<()> {
+        let input = "
+            return 5;
+            return 10;
+            return 838383;
+        ".to_string();
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program().unwrap();
+
+        for err in parser.errors {
+           panic!("{:?}", err) 
+        }
+
+        let stmts = match program {
+            Node::Program(stmts) => stmts,
+            _ => panic!("Unexpected node")
+        };
+
+        assert_eq!(stmts.len(), 3);
+
+        for stmt in stmts {
+            match stmt {
+                Statement::Return(token, expr) => {
+                    assert_eq!(token, Token::Return);
+                    assert!(expr.is_none());
+                },
+                _ => panic!("unexpected statement {:?}", stmt)
+            }
         }
 
         Ok(())

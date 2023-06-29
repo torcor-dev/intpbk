@@ -20,7 +20,8 @@ pub fn start() -> Result<()> {
 
     while let Some(line) = lines.next() {
         let mut l = lexer::Lexer::new(line?);
-        let parser = parser::Parser::new(l);
+        let mut parser = parser::Parser::new(l);
+        parser.parse_program();
 
 
         print!("{}", PROMPT);
