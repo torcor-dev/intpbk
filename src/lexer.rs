@@ -40,7 +40,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(input: String) -> Lexer {
+    pub fn new(input: String) -> Self {
         let mut l = Lexer {
             input: input.into_bytes(),
             pos: 0,

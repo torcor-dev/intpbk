@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Write};
 use anyhow::Result;
 
-use crate::lexer::{self, Token};
+use crate::{lexer::{self, Token}, parser};
 
 const PROMPT: &str = ">> ";
 
@@ -20,14 +20,9 @@ pub fn start() -> Result<()> {
 
     while let Some(line) = lines.next() {
         let mut l = lexer::Lexer::new(line?);
+        let parser = parser::Parser::new(l);
 
 
-        let mut tok = l.next_token()?;
-        while tok != Token::Eof {
-            print!("{:?} ", tok);
-            tok = l.next_token()?;
-        }
-        println!();
         print!("{}", PROMPT);
         stdout_lock.flush()?;
 
