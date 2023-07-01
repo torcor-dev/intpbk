@@ -1,3 +1,5 @@
+use core::fmt;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     Illegal,
@@ -32,6 +34,44 @@ pub enum Token {
     Return,
 }
 
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let token_str = match self {
+            Token::Illegal => "Illegal",
+            Token::Eof => "EOF",
+            Token::Ident(ident) => ident,
+            Token::Int(value) => value,
+
+            Token::Assign => "=",
+            Token::Plus => "+",
+            Token::Minus => "-",
+            Token::Bang => "!",
+            Token::Asterisk => "*",
+            Token::Slash => "/",
+            Token::Lt => "<",
+            Token::Gt => ">",
+            Token::Eq => "==",
+            Token::Neq => "!=",
+
+            Token::Comma => ",",
+            Token::Semicolon => ";",
+            Token::Lparen => "(",
+            Token::Rparen => ")",
+            Token::Lbrace => "{",
+            Token::Rbrace => "}",
+
+            Token::Function => "fn",
+            Token::Let => "let",
+            Token::True => "true",
+            Token::False => "false",
+            Token::If => "if",
+            Token::Else => "else",
+            Token::Return => "return",
+        };
+
+        write!(f, "{}", token_str)
+    }
+}
 pub struct Lexer {
     input: Vec<u8>,
     pos: usize,
@@ -40,7 +80,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(input: String) -> Self {
+    pub fn new(input: String) -> Lexer {
         let mut l = Lexer {
             input: input.into_bytes(),
             pos: 0,
