@@ -12,6 +12,7 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum Expression {
     Identifier(Token),
+    IntegerLiteral(Token, i64),
 }
 
 #[derive(Debug)]
@@ -23,6 +24,7 @@ impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expression::Identifier(token) => write!(f, "{}", token)?,
+            Expression::IntegerLiteral(token, _) => write!(f, "{}", token)?,
         }
         Ok(())
     }

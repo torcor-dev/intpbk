@@ -1,4 +1,9 @@
-use crate::{lexer::{Lexer, Token}, ast::{Node, Statement}};
+use std::collections::HashMap;
+
+use crate::{
+    ast::{Expression, Node, Statement},
+    lexer::{Lexer, Token},
+};
 use anyhow::Result;
 
 pub struct Parser {
@@ -8,6 +13,14 @@ pub struct Parser {
     errors: Vec<String>,
 }
 
+// Precedence:
+const LOWEST: usize = 1;
+const EQUALS: usize = 2;
+const LESSGREATER: usize = 3;
+const SUM: usize = 4;
+const PRODUCT: usize = 5;
+const PREFIX: usize = 6;
+const CALL: usize = 7;
 
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
@@ -27,7 +40,7 @@ impl Parser {
     pub fn parse_program(&mut self) -> Result<Node> {
         let mut statements: Vec<Statement> = Vec::new();
 
-        while self.cur_token != Some(Token::Eof) { 
+        while self.cur_token != Some(Token::Eof) {
             if let Some(stmt) = self.parse_stmt() {
                 statements.push(stmt)
             }
@@ -46,7 +59,7 @@ impl Parser {
         match self.cur_token {
             Some(Token::Let) => self.parse_let_stmt(),
             Some(Token::Return) => self.parse_return_stmt(),
-            _ => None
+            _ => self.parse_expr_stmt(),
         }
     }
 
@@ -55,7 +68,7 @@ impl Parser {
 
         if !matches!(self.peek_token, Some(Token::Ident(_))) {
             self.peek_error(Token::Ident("identifier".to_string()));
-            return None
+            return None;
         }
 
         self.next_token();
@@ -64,7 +77,7 @@ impl Parser {
 
         if !matches!(self.peek_token, Some(Token::Assign)) {
             self.peek_error(Token::Assign);
-            return None
+            return None;
         }
 
         while self.cur_token != Some(Token::Semicolon) {
@@ -75,7 +88,11 @@ impl Parser {
     }
 
     fn peek_error(&mut self, expected: Token) {
-        let msg = format!("expected next token to be {:?}, got {:?} instead", expected, self.peek_token.as_ref().unwrap());
+        let msg = format!(
+            "expected next token to be {:?}, got {:?} instead",
+            expected,
+            self.peek_token.as_ref().unwrap()
+        );
         self.errors.push(String::from(msg))
     }
 
@@ -87,41 +104,66 @@ impl Parser {
             self.next_token();
         }
 
-        return Some(Statement::Return(return_token, None))
-
+        return Some(Statement::Return(return_token, None));
     }
 
-}
+    fn parse_expr_stmt(&mut self) -> Option<Statement> {
+        let tok = self.cur_token.clone().unwrap();
+        let expr = self.parse_expr(LOWEST);
 
+        if self.peek_token == Some(Token::Semicolon) {
+            self.next_token();
+        }
+
+        return Some(Statement::Expression(tok, expr));
+    }
+
+    fn parse_expr(&self, precendence: usize) -> Option<Expression> {
+        let left = self.parse_prefix();
+
+        return left;
+    }
+
+    fn parse_identifier(&self) -> Option<Expression> {
+        Some(Expression::Identifier(self.cur_token.clone().unwrap()))
+    }
+
+    fn parse_integer_literal(&self) -> Option<Expression> {
+        let token = self.cur_token.clone();
+        if let Token::Int(val) = token.as_ref().unwrap() {
+            let lit: i64 = val.parse().unwrap();
+            Some(Expression::IntegerLiteral(token.unwrap(), lit))
+        } else {
+            None
+        }
+    }
+
+    fn parse_prefix(&self) -> Option<Expression> {
+        match self.cur_token.as_ref() {
+            Some(Token::Ident(_)) => self.parse_identifier(),
+            Some(Token::Int(_)) => self.parse_integer_literal(),
+            _ => None,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use crate::{ast::{Node, Statement, Expression}, lexer::Token};
+    use crate::{
+        ast::{Expression, Node, Statement},
+        lexer::Token,
+    };
 
     use super::{Lexer, Parser};
-    use anyhow::Result;
+    use anyhow::{Ok, Result};
 
     #[test]
     fn test_let_stmt() -> Result<()> {
-        let input = "
-            let x = 5;
+        let stmts = create_program(
+            "let x = 5;
             let y = 10;
-            let foobar = 838383;
-        ".to_string();
-
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let program = parser.parse_program().unwrap();
-
-        for err in parser.errors {
-           panic!("{:?}", err) 
-        }
-
-        let stmts = match program {
-            Node::Program(stmts) => stmts,
-            _ => panic!("Unexpected node")
-        };
+            let foobar = 838383;",
+        );
 
         assert_eq!(stmts.len(), 3);
 
@@ -135,9 +177,8 @@ mod tests {
             let stmt = &stmts[i];
             match stmt {
                 Statement::Let(token, ident, expr) => test_let(token, ident, expr, tt),
-                _ => panic!("unexpected statement {:?}", stmt)
+                _ => panic!("unexpected statement {:?}", stmt),
             }
-
         }
 
         Ok(())
@@ -145,25 +186,11 @@ mod tests {
 
     #[test]
     fn test_return_stmt() -> Result<()> {
-        let input = "
-            return 5;
+        let stmts = create_program(
+            "return 5;
             return 10;
-            return 838383;
-        ".to_string();
-
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let program = parser.parse_program().unwrap();
-
-        for err in parser.errors {
-           panic!("{:?}", err) 
-        }
-
-        let stmts = match program {
-            Node::Program(stmts) => stmts,
-            _ => panic!("Unexpected node")
-        };
+            return 838383;",
+        );
 
         assert_eq!(stmts.len(), 3);
 
@@ -172,8 +199,8 @@ mod tests {
                 Statement::Return(token, expr) => {
                     assert_eq!(token, Token::Return);
                     assert!(expr.is_none());
-                },
-                _ => panic!("unexpected statement {:?}", stmt)
+                }
+                _ => panic!("unexpected statement {:?}", stmt),
             }
         }
 
@@ -183,5 +210,65 @@ mod tests {
     fn test_let(token: &Token, ident: &Token, _expr: &Option<Expression>, tt: &Token) {
         assert!(matches!(token, Token::Let), "Expected Let, got {:?}", token);
         assert_eq!(ident, tt)
+    }
+
+
+    #[test]
+    fn test_identifier_expr() -> Result<()> {
+        let stmts = create_program("foobar;");
+        assert_eq!(stmts.len(), 1);
+
+        for stmt in stmts {
+            match stmt {
+                Statement::Expression(_, expr) => {
+                    if let Expression::Identifier(value) = expr.as_ref().unwrap() {
+                        assert_eq!(*value, Token::Ident("foobar".to_string()));
+                    } else {
+                        panic!("unexpected expression {:?}", expr);
+                    }
+                }
+                _ => panic!("unexpected statement {:?}", stmt),
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_int_literal_expr() -> Result<()> {
+        let stmts = create_program("42;");
+        assert_eq!(stmts.len(), 1);
+
+        for stmt in stmts {
+            match stmt {
+                Statement::Expression(_, expr) => {
+                    if let Expression::IntegerLiteral(token, value) = expr.as_ref().unwrap() {
+                        assert_eq!(*token, Token::Int("42".to_string()));
+                        assert_eq!(*value, 42);
+                    } else {
+                        panic!("unexpected expression {:?}", expr);
+                    }
+                }
+                _ => panic!("unexpected statement {:?}", stmt),
+            }
+        }
+
+        Ok(())
+    }
+    fn create_program(input: &str) -> Vec<Statement> {
+        let lexer = Lexer::new(input.to_string());
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program().unwrap();
+
+        for err in parser.errors {
+            panic!("{:?}", err)
+        }
+
+        let stmts = match program {
+            Node::Program(stmts) => stmts,
+        };
+
+        return stmts;
     }
 }

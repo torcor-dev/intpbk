@@ -1,6 +1,6 @@
 use core::fmt;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone,)]
 pub enum Token {
     Illegal,
     Eof,
