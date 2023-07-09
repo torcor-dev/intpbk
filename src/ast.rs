@@ -4,9 +4,9 @@ use crate::lexer::Token;
 
 #[derive(Debug)]
 pub enum Statement {
-    Let(Token, Token, Option<Expression>),
-    Return(Token, Option<Expression>),
-    Expression(Token, Option<Expression>),
+    Let(Token, Token, Option<Box<Expression>>),
+    Return(Token, Option<Box<Expression>>),
+    Expression(Token, Option<Box<Expression>>),
 }
 
 #[derive(Debug)]
@@ -70,7 +70,7 @@ mod tests {
         let stmts = [Statement::Let(
             Token::Let,
             Token::Ident(String::from("foo")),
-            Some(Expression::Identifier(Token::Ident(String::from("bar")))),
+            Some(Box::new(Expression::Identifier(Token::Ident(String::from("bar"))))),
         )];
 
         for stmt in stmts {

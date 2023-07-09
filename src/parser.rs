@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     ast::{Expression, Node, Statement},
     lexer::{Lexer, Token},
@@ -118,27 +116,29 @@ impl Parser {
         return Some(Statement::Expression(tok, expr));
     }
 
-    fn parse_expr(&self, precendence: usize) -> Option<Expression> {
+    fn parse_expr(&self, precendence: usize) -> Option<Box<Expression>> {
         let left = self.parse_prefix();
 
         return left;
     }
 
-    fn parse_identifier(&self) -> Option<Expression> {
-        Some(Expression::Identifier(self.cur_token.clone().unwrap()))
+    fn parse_identifier(&self) -> Option<Box<Expression>> {
+        Some(Box::new(Expression::Identifier(
+            self.cur_token.clone().unwrap(),
+        )))
     }
 
-    fn parse_integer_literal(&self) -> Option<Expression> {
+    fn parse_integer_literal(&self) -> Option<Box<Expression>> {
         let token = self.cur_token.clone();
         if let Token::Int(val) = token.as_ref().unwrap() {
             let lit: i64 = val.parse().unwrap();
-            Some(Expression::IntegerLiteral(token.unwrap(), lit))
+            Some(Box::new(Expression::IntegerLiteral(token.unwrap(), lit)))
         } else {
             None
         }
     }
 
-    fn parse_prefix(&self) -> Option<Expression> {
+    fn parse_prefix(&self) -> Option<Box<Expression>> {
         match self.cur_token.as_ref() {
             Some(Token::Ident(_)) => self.parse_identifier(),
             Some(Token::Int(_)) => self.parse_integer_literal(),
@@ -207,11 +207,10 @@ mod tests {
         Ok(())
     }
 
-    fn test_let(token: &Token, ident: &Token, _expr: &Option<Expression>, tt: &Token) {
+    fn test_let(token: &Token, ident: &Token, _expr: &Option<Box<Expression>>, tt: &Token) {
         assert!(matches!(token, Token::Let), "Expected Let, got {:?}", token);
         assert_eq!(ident, tt)
     }
-
 
     #[test]
     fn test_identifier_expr() -> Result<()> {
@@ -220,13 +219,12 @@ mod tests {
 
         for stmt in stmts {
             match stmt {
-                Statement::Expression(_, expr) => {
-                    if let Expression::Identifier(value) = expr.as_ref().unwrap() {
+                Statement::Expression(_, expr) => match **expr.as_ref().unwrap() {
+                    Expression::Identifier(ref value) => {
                         assert_eq!(*value, Token::Ident("foobar".to_string()));
-                    } else {
-                        panic!("unexpected expression {:?}", expr);
                     }
-                }
+                    _ => panic!("unexpected expression {:?}", expr),
+                },
                 _ => panic!("unexpected statement {:?}", stmt),
             }
         }
@@ -242,7 +240,7 @@ mod tests {
         for stmt in stmts {
             match stmt {
                 Statement::Expression(_, expr) => {
-                    if let Expression::IntegerLiteral(token, value) = expr.as_ref().unwrap() {
+                    if let Expression::IntegerLiteral(token, value) = &**expr.as_ref().unwrap() {
                         assert_eq!(*token, Token::Int("42".to_string()));
                         assert_eq!(*value, 42);
                     } else {
