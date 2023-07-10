@@ -116,8 +116,12 @@ impl Parser {
         return Some(Statement::Expression(tok, expr));
     }
 
-    fn parse_expr(&self, precendence: usize) -> Option<Box<Expression>> {
+    fn parse_expr(&mut self, precendence: usize) -> Option<Box<Expression>> {
         let left = self.parse_prefix();
+
+        if left.is_none() {
+            self.errors.push(format!("no prefix parse function for {}", self.cur_token.as_ref().unwrap()));
+        }
 
         return left;
     }
@@ -138,12 +142,23 @@ impl Parser {
         }
     }
 
-    fn parse_prefix(&self) -> Option<Box<Expression>> {
+    fn parse_prefix(&mut self) -> Option<Box<Expression>> {
         match self.cur_token.as_ref() {
             Some(Token::Ident(_)) => self.parse_identifier(),
             Some(Token::Int(_)) => self.parse_integer_literal(),
+            Some(Token::Bang) | Some(Token::Minus) => self.parse_prefix_expr(),
             _ => None,
         }
+    }
+
+    fn parse_prefix_expr(&mut self) -> Option<Box<Expression>> {
+        let token = self.cur_token.take();
+
+        self.next_token();
+
+        let right = self.parse_expr(PREFIX);
+
+        Some(Box::new(Expression::Prefix(token.unwrap(), right)))
     }
 }
 
@@ -253,6 +268,37 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_prefix_expr() -> Result<()> {
+        let stmt = create_program("!5;");
+
+        assert_eq!(stmt.len(), 1);
+
+        match stmt.first().unwrap() {
+            Statement::Expression(_, expr) => match **expr.as_ref().unwrap() {
+                Expression::Prefix(ref token, ref expr) => {
+                    assert_eq!(*token, Token::Bang);
+                    assert_eq!(5, expr_to_int(expr.as_ref().unwrap()))
+                }
+                _ => panic!("unexpected expression {:?}", expr),
+            },
+            _ => panic!("unexpected statement {:?}", stmt),
+            
+        }
+
+        Ok(())
+    }
+
+    fn expr_to_int(expr: &Box<Expression>) -> i64 {
+        match **expr {
+            Expression::IntegerLiteral(_, val) => val,
+            _ => panic!("unexpected expression, expected IntegerLiteral, got {:?}", expr),
+            
+        }
+    }
+
+
     fn create_program(input: &str) -> Vec<Statement> {
         let lexer = Lexer::new(input.to_string());
         let mut parser = Parser::new(lexer);

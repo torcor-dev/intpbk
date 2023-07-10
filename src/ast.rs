@@ -13,6 +13,7 @@ pub enum Statement {
 pub enum Expression {
     Identifier(Token),
     IntegerLiteral(Token, i64),
+    Prefix(Token, Option<Box<Expression>>),
 }
 
 #[derive(Debug)]
@@ -25,6 +26,7 @@ impl Display for Expression {
         match self {
             Expression::Identifier(token) => write!(f, "{}", token)?,
             Expression::IntegerLiteral(token, _) => write!(f, "{}", token)?,
+            Expression::Prefix(token, expr) => write!(f, "({}{})", token, expr.as_ref().unwrap())?,
         }
         Ok(())
     }
