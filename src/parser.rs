@@ -118,6 +118,7 @@ impl Parser {
 
     fn parse_expr_stmt(&mut self) -> Option<Statement> {
         let tok = self.cur_token.clone().unwrap();
+
         let expr = self.parse_expr(LOWEST);
 
         if self.peek_token == Some(Token::Semicolon) {
@@ -128,9 +129,7 @@ impl Parser {
     }
 
     fn parse_expr(&mut self, prec: usize) -> Option<Box<Expression>> {
-        let mut left = self.parse_prefix();
-
-        if left.is_none() {
+        if !is_prefix_op(self.cur_token.as_ref().unwrap()) {
             self.errors.push(format!(
                 "no prefix parse function for {}",
                 self.cur_token.as_ref().unwrap()
@@ -138,16 +137,16 @@ impl Parser {
             return None;
         }
 
-        while self.peek_token != Some(Token::Semicolon) && prec < precedence(&self.peek_token) {
-            let infix = self.parse_infix(left.clone());
+        let mut left = self.parse_prefix();
 
-            if infix.is_none() {
+        while self.peek_token != Some(Token::Semicolon) && prec < precedence(&self.peek_token) {
+            if !is_infix_op(self.peek_token.as_ref().unwrap()) {
                 return left;
             }
 
             self.next_token();
 
-            left = infix;
+            left = self.parse_infix(left);
         }
 
         return left;
@@ -180,7 +179,7 @@ impl Parser {
     }
 
     fn parse_infix(&mut self, left: Option<Box<Expression>>) -> Option<Box<Expression>> {
-        match self.peek_token.as_ref() {
+        match self.cur_token.as_ref() {
             Some(Token::Plus) => self.parse_infix_expr(left),
             Some(Token::Minus) => self.parse_infix_expr(left),
             Some(Token::Slash) => self.parse_infix_expr(left),
@@ -204,29 +203,42 @@ impl Parser {
     }
 
 
-    fn peek_precedence(&self) -> usize {
-        precedence(&self.peek_token)
-    }
-
     fn parse_infix_expr(&mut self, left: Option<Box<Expression>>) -> Option<Box<Expression>> {
-        // Dont know why we are one token behind, compared to the go version. Probably a bug.
-        self.next_token();
-
         let operator = self.cur_token.take();
         let precedence = precedence(&operator);
 
         self.next_token();
         let right = self.parse_expr(precedence);
 
-        println!("Infix expr:");
-        print!("{} ", left.as_ref().unwrap());
-        print!("{} ", operator.as_ref().unwrap());
-        print!("{}\n", right.as_ref().unwrap());
-
-        println!("precedence: {}\n\n", precedence);
         Some(Box::new(Expression::Infix(left, operator.unwrap(), right)))
     }
 }
+
+fn is_prefix_op(token: &Token) -> bool {
+    match token {
+        Token::Ident(_) => true,
+        Token::Int(_) => true,
+        Token::Bang | Token::Minus => true,
+        _ => false,
+    }
+}
+
+
+
+fn is_infix_op(token: &Token) -> bool {
+    match token {
+        Token::Plus => true,
+        Token::Minus => true,
+        Token::Slash => true,
+        Token::Asterisk => true,
+        Token::Eq => true,
+        Token::Neq => true,
+        Token::Lt => true,
+        Token::Gt => true,
+        _ => false,
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -417,7 +429,6 @@ mod tests {
 
         for tc in cases {
             let stmt = create_program(tc.input);
-            println!("Infix test: {}", tc.input);
 
             match stmt.first().unwrap() {
                 Statement::Expression(_, expr) => match **expr.as_ref().unwrap() {
@@ -460,9 +471,11 @@ mod tests {
         ];
 
         for t in tests {
-            let stmt = create_program(t.0);
+            let stmts = create_program(t.0);
 
-            assert_eq!(format!("{}", stmt.first().unwrap()), t.1);
+            let str = stmts.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("");
+
+            assert_eq!(str, t.1);
         }
 
         Ok(())
