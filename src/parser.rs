@@ -20,6 +20,17 @@ const PRODUCT: usize = 5;
 const PREFIX: usize = 6;
 const CALL: usize = 7;
 
+fn precedence(token: &Option<Token>) -> usize {
+    match token.as_ref().unwrap() {
+        Token::Eq | Token::Neq => EQUALS,
+        Token::Lt | Token::Gt => LESSGREATER,
+        Token::Plus | Token::Minus => SUM,
+        Token::Slash | Token::Asterisk => PRODUCT,
+        Token::Lparen => CALL,
+        _ => LOWEST,
+    }
+}
+
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
         let mut parser = Parser {
@@ -116,11 +127,27 @@ impl Parser {
         return Some(Statement::Expression(tok, expr));
     }
 
-    fn parse_expr(&mut self, precendence: usize) -> Option<Box<Expression>> {
-        let left = self.parse_prefix();
+    fn parse_expr(&mut self, prec: usize) -> Option<Box<Expression>> {
+        let mut left = self.parse_prefix();
 
         if left.is_none() {
-            self.errors.push(format!("no prefix parse function for {}", self.cur_token.as_ref().unwrap()));
+            self.errors.push(format!(
+                "no prefix parse function for {}",
+                self.cur_token.as_ref().unwrap()
+            ));
+            return None;
+        }
+
+        while self.peek_token != Some(Token::Semicolon) && prec < precedence(&self.peek_token) {
+            let infix = self.parse_infix(left.clone());
+
+            if infix.is_none() {
+                return left;
+            }
+
+            self.next_token();
+
+            left = infix;
         }
 
         return left;
@@ -136,6 +163,7 @@ impl Parser {
         let token = self.cur_token.clone();
         if let Token::Int(val) = token.as_ref().unwrap() {
             let lit: i64 = val.parse().unwrap();
+
             Some(Box::new(Expression::IntegerLiteral(token.unwrap(), lit)))
         } else {
             None
@@ -151,6 +179,20 @@ impl Parser {
         }
     }
 
+    fn parse_infix(&mut self, left: Option<Box<Expression>>) -> Option<Box<Expression>> {
+        match self.peek_token.as_ref() {
+            Some(Token::Plus) => self.parse_infix_expr(left),
+            Some(Token::Minus) => self.parse_infix_expr(left),
+            Some(Token::Slash) => self.parse_infix_expr(left),
+            Some(Token::Asterisk) => self.parse_infix_expr(left),
+            Some(Token::Eq) => self.parse_infix_expr(left),
+            Some(Token::Neq) => self.parse_infix_expr(left),
+            Some(Token::Lt) => self.parse_infix_expr(left),
+            Some(Token::Gt) => self.parse_infix_expr(left),
+            _ => None,
+        }
+    }
+
     fn parse_prefix_expr(&mut self) -> Option<Box<Expression>> {
         let token = self.cur_token.take();
 
@@ -159,6 +201,30 @@ impl Parser {
         let right = self.parse_expr(PREFIX);
 
         Some(Box::new(Expression::Prefix(token.unwrap(), right)))
+    }
+
+
+    fn peek_precedence(&self) -> usize {
+        precedence(&self.peek_token)
+    }
+
+    fn parse_infix_expr(&mut self, left: Option<Box<Expression>>) -> Option<Box<Expression>> {
+        // Dont know why we are one token behind, compared to the go version. Probably a bug.
+        self.next_token();
+
+        let operator = self.cur_token.take();
+        let precedence = precedence(&operator);
+
+        self.next_token();
+        let right = self.parse_expr(precedence);
+
+        println!("Infix expr:");
+        print!("{} ", left.as_ref().unwrap());
+        print!("{} ", operator.as_ref().unwrap());
+        print!("{}\n", right.as_ref().unwrap());
+
+        println!("precedence: {}\n\n", precedence);
+        Some(Box::new(Expression::Infix(left, operator.unwrap(), right)))
     }
 }
 
@@ -284,7 +350,119 @@ mod tests {
                 _ => panic!("unexpected expression {:?}", expr),
             },
             _ => panic!("unexpected statement {:?}", stmt),
-            
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_infix_expr() -> Result<()> {
+        struct TC<'a> {
+            input: &'a str,
+            left: i64,
+            operator: Token,
+            right: i64,
+        }
+
+        let cases = vec![
+            TC {
+                input: "5 + 5;",
+                left: 5,
+                operator: Token::Plus,
+                right: 5,
+            },
+            TC {
+                input: "5 - 5;",
+                left: 5,
+                operator: Token::Minus,
+                right: 5,
+            },
+            TC {
+                input: "5 * 5;",
+                left: 5,
+                operator: Token::Asterisk,
+                right: 5,
+            },
+            TC {
+                input: "5 / 5;",
+                left: 5,
+                operator: Token::Slash,
+                right: 5,
+            },
+            TC {
+                input: "5 > 5;",
+                left: 5,
+                operator: Token::Gt,
+                right: 5,
+            },
+            TC {
+                input: "5 < 5;",
+                left: 5,
+                operator: Token::Lt,
+                right: 5,
+            },
+            TC {
+                input: "5 == 5;",
+                left: 5,
+                operator: Token::Eq,
+                right: 5,
+            },
+            TC {
+                input: "5 != 5;",
+                left: 5,
+                operator: Token::Neq,
+                right: 5,
+            },
+        ];
+
+        for tc in cases {
+            let stmt = create_program(tc.input);
+            println!("Infix test: {}", tc.input);
+
+            match stmt.first().unwrap() {
+                Statement::Expression(_, expr) => match **expr.as_ref().unwrap() {
+                    Expression::Infix(ref left, ref op, ref right) => {
+                        assert_eq!(tc.left, expr_to_int(left.as_ref().unwrap()));
+                        assert_eq!(*op, tc.operator);
+                        assert_eq!(tc.right, expr_to_int(right.as_ref().unwrap()));
+                    }
+                    _ => panic!("unexpected expression {:?}", expr),
+                },
+                _ => panic!("unexpected statement {:?}", stmt),
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_operator_precedence() -> Result<()> {
+        let tests = vec![
+            ("-a * b", "((-a) * b)"),
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b - c", "((a + b) - c)"),
+            ("a * b * c", "((a * b) * c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b / c", "(a + (b / c))"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
+
+        for t in tests {
+            let stmt = create_program(t.0);
+
+            assert_eq!(format!("{}", stmt.first().unwrap()), t.1);
         }
 
         Ok(())
@@ -293,11 +471,12 @@ mod tests {
     fn expr_to_int(expr: &Box<Expression>) -> i64 {
         match **expr {
             Expression::IntegerLiteral(_, val) => val,
-            _ => panic!("unexpected expression, expected IntegerLiteral, got {:?}", expr),
-            
+            _ => panic!(
+                "unexpected expression, expected IntegerLiteral, got {:?}",
+                expr
+            ),
         }
     }
-
 
     fn create_program(input: &str) -> Vec<Statement> {
         let lexer = Lexer::new(input.to_string());

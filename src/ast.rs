@@ -9,11 +9,12 @@ pub enum Statement {
     Expression(Token, Option<Box<Expression>>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Token),
     IntegerLiteral(Token, i64),
     Prefix(Token, Option<Box<Expression>>),
+    Infix(Option<Box<Expression>>, Token, Option<Box<Expression>>),
 }
 
 #[derive(Debug)]
@@ -27,6 +28,13 @@ impl Display for Expression {
             Expression::Identifier(token) => write!(f, "{}", token)?,
             Expression::IntegerLiteral(token, _) => write!(f, "{}", token)?,
             Expression::Prefix(token, expr) => write!(f, "({}{})", token, expr.as_ref().unwrap())?,
+            Expression::Infix(left, op, right) => write!(
+                f,
+                "({} {} {})",
+                left.as_ref().unwrap(),
+                op,
+                right.as_ref().unwrap()
+            )?,
         }
         Ok(())
     }
@@ -72,7 +80,9 @@ mod tests {
         let stmts = [Statement::Let(
             Token::Let,
             Token::Ident(String::from("foo")),
-            Some(Box::new(Expression::Identifier(Token::Ident(String::from("bar"))))),
+            Some(Box::new(Expression::Identifier(Token::Ident(
+                String::from("bar"),
+            )))),
         )];
 
         for stmt in stmts {
